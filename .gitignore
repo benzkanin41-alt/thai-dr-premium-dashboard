@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.modern.js
+raw_marketdata.html
+set_aapl01.html
+spp_set.html
+stockanalysis_set.html
+.DS_Store
+Thumbs.db

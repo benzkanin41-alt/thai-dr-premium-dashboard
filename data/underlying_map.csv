@@ -1,0 +1,60 @@
+set_underlying,dr_symbol,yahoo_symbol,note
+BRKB,,BRK-B,Berkshire Hathaway class B
+JPMUS,,JPM,JPMorgan Chase
+GSUS,,GS,Goldman Sachs
+TENCENT,,0700.HK,Tencent Hong Kong
+BABA,,9988.HK,Alibaba Hong Kong
+XIAOMI,,1810.HK,Xiaomi Hong Kong
+MEITUAN,,3690.HK,Meituan Hong Kong
+AIA,,1299.HK,AIA Hong Kong
+BYDCOM,,1211.HK,BYD Hong Kong
+PINGAN,,2318.HK,Ping An Hong Kong
+CHMOBILE,,0941.HK,China Mobile Hong Kong
+CMBANK,,3968.HK,China Merchants Bank Hong Kong
+ICBC,,1398.HK,ICBC Hong Kong
+PETROCN,,0857.HK,PetroChina Hong Kong
+HKEX,,0388.HK,Hong Kong Exchanges
+SMIC,,0981.HK,SMIC Hong Kong
+ZIJIN,,2899.HK,Zijin Mining Hong Kong
+GEELY,,0175.HK,Geely Hong Kong
+WUXI,,2269.HK,WuXi Bio Hong Kong
+WUXIAT,,2359.HK,WuXi AppTec Hong Kong
+TRIPCOM,,9961.HK,Trip.com Hong Kong
+HAIERS,,6690.HK,Haier Smart Home Hong Kong
+HUAHONG,,1347.HK,Hua Hong Semiconductor Hong Kong
+NETEASE,,9999.HK,NetEase Hong Kong
+CATL,,3750.HK,CATL Hong Kong
+GANFENG,,1772.HK,Ganfeng Lithium Hong Kong
+NAURA,,002371.SZ,NAURA Shenzhen
+CYPC,,600900.SS,China Yangtze Power Shanghai
+ZJINNO,,300308.SZ,Zhongji Innolight Shenzhen
+CAMBRI,,688256.SS,Cambricon Shanghai
+TOYOTA,,7203.T,Toyota Tokyo
+SOFTBANK,,9984.T,SoftBank Group Tokyo
+SONY,,6758.T,Sony Tokyo
+NINTENDO,,7974.T,Nintendo Tokyo
+MITSU,,7011.T,Mitsubishi Heavy Industries Tokyo
+ITOCHU,,8001.T,Itochu Tokyo
+TEL,,8035.T,Tokyo Electron
+ADVANT,,6857.T,Advantest Tokyo
+KEYENCE,,6861.T,Keyence Tokyo
+UNIQLO,,9983.T,Fast Retailing Tokyo
+DISCO,,6146.T,Disco Tokyo
+HITACHI,,6501.T,Hitachi Tokyo
+FANUC,,6954.T,Fanuc Tokyo
+ASICS,,7936.T,Asics Tokyo
+HONDA,,7267.T,Honda Tokyo
+LVMH,,MC.PA,LVMH Paris
+LOREAL,,OR.PA,L'Oreal Paris
+HERMES,,RMS.PA,Hermes Paris
+ASML,,ASML.AS,ASML Amsterdam
+NOVOB,,NOVO-B.CO,Novo Nordisk Copenhagen
+SANOFI,,SAN.PA,Sanofi Paris
+FERRARI,,RACE.MI,Ferrari Milan
+DBS,,D05.SI,DBS Singapore
+UOB,,U11.SI,UOB Singapore
+SINGTEL,,Z74.SI,Singtel Singapore
+SGX,,S68.SI,Singapore Exchange
+SEMB,,U96.SI,Sembcorp Industries Singapore
+THAIBEV,,Y92.SI,ThaiBev Singapore
+WORLDA ETF,WORLDA01,SMSWLD.MI,Invesco MSCI World UCITS ETF Yahoo fallback

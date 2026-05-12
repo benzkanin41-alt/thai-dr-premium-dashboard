@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thai DR Premium Dashboard</title>
+    <link rel="stylesheet" href="web/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Depositary Receipts Monitor</p>
+          <h1>Thai DR Premium / Discount</h1>
+          <p class="subhead">
+            ดูให้ชัดในแถวเดียวว่า DR ไทยซื้อขายกี่บาท, ถ้าคิดจากหุ้นแม่ควรเป็นกี่บาทต่อ DR,
+            และหุ้นแม่ต่างประเทศตอนนี้ราคาเท่าไร
+          </p>
+        </div>
+        <div class="actions">
+          <button id="refreshBtn" title="Load latest generated data">Refresh</button>
+          <button id="forceBtn" class="ghost" title="Only available when running local Python server">Full Profile Refresh</button>
+          <a id="exportLink" class="ghost linkbtn" href="data/dashboard.csv">Export CSV</a>
+        </div>
+      </section>
+
+      <section class="metrics" aria-live="polite">
+        <div>
+          <span id="confirmedCount">-</span>
+          <label>Confirmed DR</label>
+        </div>
+        <div>
+          <span id="withDiffCount">-</span>
+          <label>Diff Ready</label>
+        </div>
+        <div>
+          <span id="premiumCount">-</span>
+          <label>Premium &gt; 2%</label>
+        </div>
+        <div>
+          <span id="discountCount">-</span>
+          <label>Discount &lt; -2%</label>
+        </div>
+      </section>
+
+      <section class="controls">
+        <input id="searchInput" type="search" placeholder="Search DR, underlying, issuer, exchange" />
+        <select id="statusFilter">
+          <option value="all">All status</option>
+          <option value="premium">Premium</option>
+          <option value="discount">Discount</option>
+          <option value="ok">Near fair</option>
+          <option value="needs_mapping_or_quote">Needs mapping / quote</option>
+        </select>
+        <select id="sortSelect">
+          <option value="absDiff">Sort by |diff|</option>
+          <option value="diffDesc">Premium high to low</option>
+          <option value="diffAsc">Discount low to high</option>
+          <option value="symbol">Symbol A-Z</option>
+        </select>
+      </section>
+
+      <section id="notice" class="notice">Loading dashboard...</section>
+
+      <section class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>DR</th>
+              <th>หุ้นแม่</th>
+              <th>ราคา DR ไทยตอนนี้</th>
+              <th>ราคา DR คำนวณจากหุ้นแม่</th>
+              <th>ราคาหุ้นแม่ปัจจุบัน</th>
+              <th>ต่างจาก Fair DR</th>
+              <th>หุ้นแม่ที่ implied จาก DR</th>
+              <th>FX</th>
+              <th>Ratio</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </section>
+    </main>
+    <script src="web/app.js"></script>
+  </body>
+</html>
