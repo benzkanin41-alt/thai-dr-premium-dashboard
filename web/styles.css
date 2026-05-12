@@ -159,7 +159,7 @@ button:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1320px;
+  min-width: 1460px;
 }
 
 th,
@@ -206,6 +206,10 @@ td:first-child {
 
 .fair-price {
   background: rgba(21, 94, 239, 0.06);
+}
+
+.extended-price {
+  background: rgba(147, 99, 22, 0.07);
 }
 
 .muted {

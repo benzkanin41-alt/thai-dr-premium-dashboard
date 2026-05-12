@@ -25,6 +25,11 @@ function fmtPct(value) {
   return `${sign}${fmt(value, 2)}%`;
 }
 
+function extendedLabel(row) {
+  if (!row.underlying_ext_price) return "ไม่มีราคา Pre/Post";
+  return row.underlying_ext_session || "Extended hours";
+}
+
 function statusLabel(status) {
   if (status === "premium") return "Premium";
   if (status === "discount") return "Discount";
@@ -135,6 +140,10 @@ function renderRows() {
         <div class="price-main">${fmt(row.underlying_price, 3)} ${row.underlying_currency || ""}</div>
         <div class="muted">${row.yahoo_symbol || "-"}</div>
       </td>
+      <td class="price-cell extended-price">
+        <div class="price-main">${fmt(row.underlying_ext_price, 3)} ${row.underlying_currency || ""}</div>
+        <div class="muted">${extendedLabel(row)}</div>
+      </td>
       <td class="${row.diff_pct > 0 ? "premium" : row.diff_pct < 0 ? "discount" : ""}">
         <div class="price-main">${fmtPct(row.diff_pct)}</div>
         <div class="muted">${row.diff_pct > 0 ? "DR แพงกว่า" : row.diff_pct < 0 ? "DR ถูกกว่า" : "ใกล้เคียง"}</div>
@@ -162,6 +171,6 @@ loadDashboard();
 
 if (!supportsServerApi) {
   forceBtn.disabled = true;
-  forceBtn.title = "GitHub Pages updates by scheduled GitHub Actions every 15 minutes";
+  forceBtn.title = "GitHub Pages updates by scheduled GitHub Actions every 5 minutes";
   exportLink.href = "data/dashboard.csv";
 }

@@ -28,7 +28,7 @@ STOCKANALYSIS_URL = "https://stockanalysis.com/list/stock-exchange-of-thailand/"
 STOCKPRICEPREDICTIONS_URL = "https://stockpricepredictions.com/asia-pacific/thailand/set/"
 SET_FACTSHEET_URL = "https://www.set.or.th/en/market/product/dr/quote/{symbol}/factsheet"
 YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
-YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1d"
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1m&includePrePost=true"
 
 DR_PROFILE_CACHE = CACHE_DIR / "dr_profiles.json"
 DASHBOARD_CACHE = CACHE_DIR / "dashboard.json"
@@ -392,14 +392,17 @@ def resolve_yahoo_symbol(record: dict[str, Any], manual_map: dict[str, dict[str,
     return None, "needs_mapping"
 
 
-def fetch_yahoo_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
+def fetch_yahoo_quotes(symbols: list[str], include_extended: bool = False) -> dict[str, dict[str, Any]]:
     clean = sorted({s for s in symbols if s})
     if not clean:
         return {}
     results: dict[str, dict[str, Any]] = {}
     for i in range(0, len(clean), 70):
         chunk = clean[i : i + 70]
-        params = urllib.parse.urlencode({"symbols": ",".join(chunk), "fields": "regularMarketPrice,currency,bid,ask,regularMarketTime,shortName"})
+        fields = "regularMarketPrice,currency,bid,ask,regularMarketTime,shortName"
+        if include_extended:
+            fields += ",preMarketPrice,preMarketTime,postMarketPrice,postMarketTime"
+        params = urllib.parse.urlencode({"symbols": ",".join(chunk), "fields": fields})
         url = f"{YAHOO_QUOTE_URL}?{params}"
         try:
             data = json.loads(http_get(url, timeout=20, accept_json=True))
@@ -408,6 +411,7 @@ def fetch_yahoo_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
         for item in data.get("quoteResponse", {}).get("result", []):
             sym = item.get("symbol")
             if sym:
+                normalize_quote_extended_fields(item)
                 results[sym] = item
     missing = [symbol for symbol in clean if symbol not in results]
     if missing:
@@ -421,7 +425,53 @@ def fetch_yahoo_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
                     item = None
                 if item:
                     results[symbol] = item
+    if include_extended:
+        needs_extended = [
+            symbol
+            for symbol in clean
+            if symbol in results
+            and results[symbol].get("extendedMarketPrice") is None
+            and results[symbol].get("preMarketPrice") is None
+            and results[symbol].get("postMarketPrice") is None
+        ]
+        if needs_extended:
+            with ThreadPoolExecutor(max_workers=14) as executor:
+                futures = {executor.submit(fetch_yahoo_chart_quote, symbol): symbol for symbol in needs_extended}
+                for future in as_completed(futures):
+                    symbol = futures[future]
+                    try:
+                        chart_item = future.result()
+                    except Exception:
+                        chart_item = None
+                    if chart_item:
+                        results[symbol] = {**chart_item, **results[symbol], **extract_quote_extended_fields(chart_item)}
     return results
+
+
+def normalize_quote_extended_fields(item: dict[str, Any]) -> None:
+    item.update(extract_quote_extended_fields(item))
+
+
+def extract_quote_extended_fields(item: dict[str, Any]) -> dict[str, Any]:
+    if item.get("extendedMarketPrice") is not None:
+        return {
+            "extendedMarketPrice": item.get("extendedMarketPrice"),
+            "extendedMarketSession": item.get("extendedMarketSession"),
+            "extendedMarketTime": item.get("extendedMarketTime"),
+        }
+    if item.get("postMarketPrice") is not None:
+        return {
+            "extendedMarketPrice": item.get("postMarketPrice"),
+            "extendedMarketSession": "Postmarket",
+            "extendedMarketTime": item.get("postMarketTime"),
+        }
+    if item.get("preMarketPrice") is not None:
+        return {
+            "extendedMarketPrice": item.get("preMarketPrice"),
+            "extendedMarketSession": "Premarket",
+            "extendedMarketTime": item.get("preMarketTime"),
+        }
+    return {"extendedMarketPrice": None, "extendedMarketSession": None, "extendedMarketTime": None}
 
 
 def fetch_yahoo_chart_quote(symbol: str) -> dict[str, Any] | None:
@@ -438,14 +488,53 @@ def fetch_yahoo_chart_quote(symbol: str) -> dict[str, Any] | None:
         price = closes[-1] if closes else None
     if price is None:
         return None
+    extended = extract_extended_market_quote(result)
     return {
         "symbol": meta.get("symbol") or symbol,
         "regularMarketPrice": price,
         "currency": meta.get("currency"),
         "regularMarketTime": meta.get("regularMarketTime"),
+        "extendedMarketPrice": extended.get("price"),
+        "extendedMarketSession": extended.get("session"),
+        "extendedMarketTime": extended.get("time"),
         "shortName": meta.get("shortName") or meta.get("exchangeName"),
         "exchangeName": meta.get("exchangeName"),
     }
+
+
+def extract_extended_market_quote(result: dict[str, Any]) -> dict[str, Any]:
+    meta = result.get("meta", {})
+    if meta.get("postMarketPrice") is not None:
+        return {"price": meta.get("postMarketPrice"), "session": "Postmarket", "time": meta.get("postMarketTime")}
+    if meta.get("preMarketPrice") is not None:
+        return {"price": meta.get("preMarketPrice"), "session": "Premarket", "time": meta.get("preMarketTime")}
+
+    periods = meta.get("currentTradingPeriod") or {}
+    pre = periods.get("pre") or {}
+    regular = periods.get("regular") or {}
+    post = periods.get("post") or {}
+    timestamps = result.get("timestamp") or []
+    quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    closes = quote.get("close") or []
+    pairs = [(ts, close) for ts, close in zip(timestamps, closes) if close is not None]
+    if not pairs:
+        return {"price": None, "session": None, "time": None}
+
+    def latest_between(start: Any, end: Any) -> tuple[Any, Any] | None:
+        if start is None or end is None:
+            return None
+        matches = [(ts, close) for ts, close in pairs if start <= ts < end]
+        return matches[-1] if matches else None
+
+    latest = pairs[-1]
+    if post.get("start") is not None and latest[0] >= post.get("start"):
+        return {"price": latest[1], "session": "Postmarket", "time": latest[0]}
+
+    pre_match = latest_between(pre.get("start"), regular.get("start") or pre.get("end"))
+    if pre_match and latest[0] < (regular.get("start") or math.inf):
+        return {"price": pre_match[1], "session": "Premarket", "time": pre_match[0]}
+
+    return {"price": None, "session": None, "time": None}
 
 
 def currency_to_thb_symbols(currencies: list[str]) -> dict[str, str]:
@@ -483,7 +572,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
             yahoo_symbols.append(yahoo_symbol)
         merged.append(item)
 
-    underlying_quotes = fetch_yahoo_quotes(yahoo_symbols)
+    underlying_quotes = fetch_yahoo_quotes(yahoo_symbols, include_extended=True)
     currencies = [q.get("currency") for q in underlying_quotes.values() if q.get("currency")]
     fx_symbols = currency_to_thb_symbols(currencies)
     fx_quotes = fetch_yahoo_quotes(list(fx_symbols.values()))
@@ -497,6 +586,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
     for item in merged:
         quote = underlying_quotes.get(item.get("yahoo_symbol") or "", {})
         underlying_price = parse_float(quote.get("regularMarketPrice"))
+        underlying_ext_price = parse_float(quote.get("extendedMarketPrice"))
         currency = quote.get("currency") or None
         fx = fx_to_thb.get(currency or "")
         dr_per_underlying = parse_float(item.get("dr_per_underlying"))
@@ -518,6 +608,9 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
             {
                 **item,
                 "underlying_price": underlying_price,
+                "underlying_ext_price": underlying_ext_price,
+                "underlying_ext_session": quote.get("extendedMarketSession"),
+                "underlying_ext_time": quote.get("extendedMarketTime"),
                 "underlying_currency": currency,
                 "fx_to_thb": fx,
                 "fair_dr": fair_dr,
@@ -561,6 +654,9 @@ def to_public_row(row: dict[str, Any]) -> dict[str, Any]:
         "yahoo_symbol",
         "dr_last",
         "underlying_price",
+        "underlying_ext_price",
+        "underlying_ext_session",
+        "underlying_ext_time",
         "underlying_currency",
         "fx_to_thb",
         "conversion_ratio",

@@ -26,7 +26,7 @@ The first full refresh can take a few minutes because the app confirms DR profil
 
 ## GitHub Pages
 
-This project can run online for free as a static GitHub Pages site. GitHub Actions builds `data/dashboard.json` and `data/dashboard.csv` every 10 minutes.
+This project can run online for free as a static GitHub Pages site. GitHub Actions builds `data/dashboard.json` and `data/dashboard.csv` every 5 minutes.
 
 ```powershell
 python scripts/build_static_data.py
