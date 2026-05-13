@@ -159,7 +159,7 @@ button:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1460px;
+  min-width: 1560px;
 }
 
 th,
@@ -185,7 +185,8 @@ th:first-child,
 td:first-child,
 th:nth-child(2),
 td:nth-child(2),
-td.status {
+td.status,
+.status-col {
   text-align: left;
 }
 
@@ -210,6 +211,36 @@ td:first-child {
 
 .extended-price {
   background: rgba(147, 99, 22, 0.07);
+}
+
+.fx-col,
+.ratio-col,
+.status-col {
+  background: var(--panel);
+  position: sticky;
+  z-index: 2;
+}
+
+th.fx-col,
+th.ratio-col,
+th.status-col {
+  background: #eef2f7;
+  z-index: 3;
+}
+
+.status-col {
+  right: 0;
+  min-width: 112px;
+}
+
+.ratio-col {
+  right: 112px;
+  min-width: 110px;
+}
+
+.fx-col {
+  right: 222px;
+  min-width: 166px;
 }
 
 .muted {

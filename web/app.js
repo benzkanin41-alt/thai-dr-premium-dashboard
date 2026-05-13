@@ -158,12 +158,12 @@ function renderRows() {
         <div class="price-main">${fmt(row.implied_underlying, 3)}</div>
         <div class="muted">${row.underlying_currency || ""} ต่อหุ้นแม่</div>
       </td>
-      <td>
+      <td class="fx-col">
         <div>${fmtFx(row.fx_to_thb)}</div>
         <div class="muted">${row.fx_source_symbol || ""}</div>
       </td>
-      <td>${ratio}</td>
-      <td class="status"><span class="pill ${row.status}">${statusLabel(row.status)}</span></td>
+      <td class="ratio-col">${ratio}</td>
+      <td class="status status-col"><span class="pill ${row.status}">${statusLabel(row.status)}</span></td>
     `;
     fragment.appendChild(tr);
   }
