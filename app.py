@@ -29,6 +29,7 @@ STOCKPRICEPREDICTIONS_URL = "https://stockpricepredictions.com/asia-pacific/thai
 SET_FACTSHEET_URL = "https://www.set.or.th/en/market/product/dr/quote/{symbol}/factsheet"
 YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1m&includePrePost=true"
+GOOGLE_FINANCE_QUOTE_URL = "https://www.google.com/finance/quote/{base}-{quote}"
 
 DR_PROFILE_CACHE = CACHE_DIR / "dr_profiles.json"
 DASHBOARD_CACHE = CACHE_DIR / "dashboard.json"
@@ -537,23 +538,66 @@ def extract_extended_market_quote(result: dict[str, Any]) -> dict[str, Any]:
     return {"price": None, "session": None, "time": None}
 
 
-def currency_to_thb_symbols(currencies: list[str]) -> dict[str, str]:
+def currency_to_thb_specs(currencies: list[str]) -> dict[str, list[dict[str, Any]]]:
     mapping = {}
     for currency in sorted(set(currencies)):
         if not currency or currency == "THB":
             continue
-        mapping[currency] = f"{currency}THB=X"
+        if currency == "VND":
+            mapping[currency] = [
+                {"source": "google_finance", "base": "THB", "quote": "VND", "symbol": "Google Finance THB-VND", "invert": True},
+                {"source": "google_finance", "base": "VND", "quote": "THB", "symbol": "Google Finance VND-THB", "invert": False},
+                {"source": "yahoo", "symbol": "VNDTHB=X", "invert": False},
+            ]
+        else:
+            mapping[currency] = [{"source": "yahoo", "symbol": f"{currency}THB=X", "invert": False}]
     return mapping
+
+
+def resolve_fx_to_thb(currency: str, specs: list[dict[str, Any]], quotes: dict[str, dict[str, Any]]) -> tuple[float | None, str | None]:
+    for spec in specs:
+        symbol = spec["symbol"]
+        if spec.get("source") == "google_finance":
+            price = fetch_google_finance_fx(str(spec["base"]), str(spec["quote"]))
+        else:
+            price = parse_float(quotes.get(symbol, {}).get("regularMarketPrice"))
+        if not price:
+            continue
+        if spec.get("invert"):
+            return 1 / price, f"{symbol} inverted"
+        return price, symbol
+    return None, None
+
+
+def fetch_google_finance_fx(base: str, quote: str) -> float | None:
+    url = GOOGLE_FINANCE_QUOTE_URL.format(base=urllib.parse.quote(base), quote=urllib.parse.quote(quote))
+    body = http_get(url, timeout=20)
+    pair_label = f"{base} / {quote}"
+    match = re.search(
+        rf'"{re.escape(pair_label)}"\s*,\s*\d+\s*,\s*null\s*,\s*\[\s*([-+]?\d+(?:\.\d+)?)',
+        body,
+    )
+    if match:
+        return parse_float(match.group(1))
+    return None
 
 
 def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict[str, Any]:
     ensure_dirs()
+    cached = read_json(DASHBOARD_CACHE, {}) if DASHBOARD_CACHE.exists() else {}
     if not refresh and DASHBOARD_CACHE.exists():
-        cached = read_json(DASHBOARD_CACHE, {})
-        if cached and time.time() - DASHBOARD_CACHE.stat().st_mtime < 900:
+        if cached:
             return cached
 
-    source_rows = discover_dr_price_rows()
+    try:
+        source_rows = discover_dr_price_rows()
+    except Exception:
+        if cached:
+            cached = dict(cached)
+            cached["served_from_stale_cache"] = True
+            cached["cache_warning"] = "Live refresh failed; served last cached dashboard data."
+            return cached
+        raise
     symbols = [row["symbol"] for row in source_rows]
     profiles = refresh_set_profiles(symbols, force=force_profiles)
     manual_map = load_manual_map()
@@ -574,13 +618,17 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
 
     underlying_quotes = fetch_yahoo_quotes(yahoo_symbols, include_extended=True)
     currencies = [q.get("currency") for q in underlying_quotes.values() if q.get("currency")]
-    fx_symbols = currency_to_thb_symbols(currencies)
-    fx_quotes = fetch_yahoo_quotes(list(fx_symbols.values()))
+    fx_specs = currency_to_thb_specs(currencies)
+    fx_quote_symbols = [spec["symbol"] for specs in fx_specs.values() for spec in specs if spec.get("source") == "yahoo"]
+    fx_quotes = fetch_yahoo_quotes(fx_quote_symbols)
     fx_to_thb: dict[str, float] = {"THB": 1.0}
-    for currency, fx_symbol in fx_symbols.items():
-        price = parse_float(fx_quotes.get(fx_symbol, {}).get("regularMarketPrice"))
+    fx_sources: dict[str, str] = {"THB": "THB"}
+    for currency, specs in fx_specs.items():
+        price, source = resolve_fx_to_thb(currency, specs, fx_quotes)
         if price:
             fx_to_thb[currency] = price
+            if source:
+                fx_sources[currency] = source
 
     rows: list[dict[str, Any]] = []
     for item in merged:
@@ -613,6 +661,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
                 "underlying_ext_time": quote.get("extendedMarketTime"),
                 "underlying_currency": currency,
                 "fx_to_thb": fx,
+                "fx_source_symbol": fx_sources.get(currency or ""),
                 "fair_dr": fair_dr,
                 "diff_pct": diff_pct,
                 "implied_underlying": implied_underlying,
@@ -630,6 +679,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
             "dr_universe_fallback": STOCKPRICEPREDICTIONS_URL,
             "dr_profile": "SET DR factsheet pages",
             "underlying_quote": "Yahoo Finance quote endpoint",
+            "fx_quote": "Yahoo Finance FX pairs; VND uses Google Finance THB-VND inverted",
         },
         "counts": {
             "candidate_symbols": len(source_rows),
@@ -659,6 +709,7 @@ def to_public_row(row: dict[str, Any]) -> dict[str, Any]:
         "underlying_ext_time",
         "underlying_currency",
         "fx_to_thb",
+        "fx_source_symbol",
         "conversion_ratio",
         "dr_per_underlying",
         "fair_dr",

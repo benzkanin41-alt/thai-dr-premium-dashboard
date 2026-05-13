@@ -45,7 +45,7 @@ Settings > Pages > Source: GitHub Actions
 - DR universe and Thai DR last price: StockAnalysis SET list.
 - DR profile and true conversion ratio: SET DR factsheet page for each DR symbol.
 - Underlying live quote and currency: Yahoo Finance quote endpoint.
-- FX to THB: Yahoo Finance FX pairs such as `USDTHB=X`, `HKDTHB=X`, `JPYTHB=X`.
+- FX to THB: Yahoo Finance FX pairs such as `USDTHB=X`, `HKDTHB=X`, `JPYTHB=X`; VND uses Google Finance `THB-VND` inverted for better precision.
 - Manual mapping for non-US or unusual underlying symbols: `data/underlying_map.csv`.
 
 ## Future New DR
