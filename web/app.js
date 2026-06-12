@@ -1,5 +1,6 @@
 let dashboard = null;
 let visibleRows = [];
+let isLoading = false;
 
 const rowsEl = document.getElementById("rows");
 const noticeEl = document.getElementById("notice");
@@ -9,6 +10,7 @@ const statusFilter = document.getElementById("statusFilter");
 const sortSelect = document.getElementById("sortSelect");
 const supportsServerApi = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const githubWorkflowUrl = "https://github.com/benzkanin41-alt/thai-dr-premium-dashboard/actions/workflows/update-dashboard.yml";
+const autoRefreshMs = 5 * 60 * 1000;
 
 function fmt(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -48,6 +50,8 @@ function setLoading(isLoading, message = "") {
 }
 
 async function loadDashboard({ updatePrices = false } = {}) {
+  if (isLoading) return;
+  isLoading = true;
   const message = updatePrices
     ? "Updating DR prices from SET official data, refreshing underlying prices and FX, then recalculating..."
     : "Loading dashboard...";
@@ -86,6 +90,7 @@ async function loadDashboard({ updatePrices = false } = {}) {
     noticeEl.textContent = error.message;
     noticeEl.classList.add("error");
   } finally {
+    isLoading = false;
     setLoading(false);
   }
 }
@@ -190,6 +195,14 @@ statusFilter.addEventListener("change", applyFilters);
 sortSelect.addEventListener("change", applyFilters);
 
 loadDashboard();
+
+window.setInterval(() => {
+  if (!document.hidden) loadDashboard();
+}, autoRefreshMs);
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) loadDashboard();
+});
 
 if (!supportsServerApi) {
   if (priceBtn) {
