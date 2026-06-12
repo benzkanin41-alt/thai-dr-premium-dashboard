@@ -1,0 +1,21 @@
+symbol,company_name,dr_last,dr_percent_change,price_source
+AMAT23,"Applied Materials, Inc.",7.25,10.69,SET official DR search local override
+ASEMI23,Global X Asia Semiconductor ETF,7.85,5.937922,SET official DR search local override
+BRKB23,"Berkshire Hathaway Inc.",5.35,0.75,SET official DR search local override
+COHR23,Coherent Corp.,6.15,5.31,SET official DR search local override
+COIN23,"Coinbase Global, Inc.",2.64,4.35,SET official DR search local override
+E1VFVN3001,DCVFMVN30 ETF,43,0,SET official DR search local override
+FUEVFVND01,DCVFMVN Diamond ETF,44,0,SET official DR search local override
+INTEL23,Intel Corporation,5.5,9.34,SET official DR search local override
+LITE23,Lumentum Holdings Inc.,5.95,5.87,SET official DR search local override
+LLY23,Eli Lilly and Company,3.88,3.74,SET official DR search local override
+MELI23,"MercadoLibre, Inc.",5.4,3.25,SET official DR search local override
+MP23,MP Materials Corp.,6.4,9.03,SET official DR search local override
+NBIS23,Nebius Group N.V.,7.7,10.47,SET official DR search local override
+NVTS23,Navitas Semiconductor Corporation,7.55,11.85,SET official DR search local override
+ON23,ON Semiconductor Corporation,7.7,6.21,SET official DR search local override
+RKLB23,Rocket Lab Corporation,2.04,17.92,SET official DR search local override
+SOFI23,"SoFi Technologies, Inc.",5.55,6.32,SET official DR search local override
+SP500US19,State Street SPDR Portfolio S&P 500 ETF,14.3,0.7,SET official DR search local override
+SYNP23,"Synopsys, Inc.",6.05,-0.17,SET official DR search local override
+TER23,"Teradyne, Inc.",6.25,9.27,SET official DR search local override

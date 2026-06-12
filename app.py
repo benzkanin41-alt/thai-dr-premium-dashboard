@@ -27,6 +27,9 @@ CACHE_DIR = DATA_DIR / "cache"
 STOCKANALYSIS_URL = "https://stockanalysis.com/list/stock-exchange-of-thailand/"
 STOCKPRICEPREDICTIONS_URL = "https://stockpricepredictions.com/asia-pacific/thailand/set/"
 SET_FACTSHEET_URL = "https://www.set.or.th/en/market/product/dr/quote/{symbol}/factsheet"
+SET_DR_MARKETDATA_URL = "https://www.set.or.th/en/market/product/dr/marketdata"
+SET_DR_SEARCH_API_PATH = "/api/set/dr/search?tradeDateType=C&lang=en"
+SET_DR_TRADE_DATE_API_PATH = "/api/set/dr/search/condition/trade-date"
 YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1m&includePrePost=true"
 GOOGLE_FINANCE_QUOTE_URL = "https://www.google.com/finance/quote/{base}-{quote}"
@@ -34,6 +37,7 @@ GOOGLE_FINANCE_QUOTE_URL = "https://www.google.com/finance/quote/{base}-{quote}"
 DR_PROFILE_CACHE = CACHE_DIR / "dr_profiles.json"
 DASHBOARD_CACHE = CACHE_DIR / "dashboard.json"
 MANUAL_MAP_CSV = DATA_DIR / "underlying_map.csv"
+LOCAL_DR_OVERRIDES_CSV = DATA_DIR / "local_dr_overrides.csv"
 
 HTTP_HEADERS = {
     "User-Agent": (
@@ -42,6 +46,12 @@ HTTP_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+
+EDGE_EXECUTABLE_CANDIDATES = [
+    Path("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"),
+    Path("C:/Program Files/Microsoft/Edge/Application/msedge.exe"),
+    Path.home() / "AppData/Local/Microsoft/Edge/Application/msedge.exe",
+]
 
 
 BUILTIN_UNDERLYING_MAP: dict[str, str] = {
@@ -223,7 +233,224 @@ def parse_stockpricepredictions_rows() -> list[dict[str, Any]]:
     return parsed
 
 
-def discover_dr_price_rows() -> list[dict[str, Any]]:
+def find_browser_executable() -> Path | None:
+    env_path = os.environ.get("DR_DASHBOARD_BROWSER_EXECUTABLE")
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+    for candidate in EDGE_EXECUTABLE_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def fetch_set_dr_market_rows_via_browser() -> dict[str, Any]:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        raise RuntimeError("Python Playwright is required for SET price refresh") from exc
+
+    browser_path = find_browser_executable()
+    with sync_playwright() as playwright:
+        launch_options: dict[str, Any] = {
+            "headless": True,
+            "args": ["--disable-blink-features=AutomationControlled"],
+        }
+        if browser_path:
+            launch_options["executable_path"] = str(browser_path)
+        browser = playwright.chromium.launch(**launch_options)
+        try:
+            page = browser.new_page(locale="en-US", timezone_id="Asia/Bangkok")
+            page.goto(SET_DR_MARKETDATA_URL, wait_until="domcontentloaded", timeout=60_000)
+            page.wait_for_timeout(8_000)
+            result = page.evaluate(
+                """async ([searchPath, tradeDatePath]) => {
+                    async function fetchText(path) {
+                        const response = await fetch(path, {
+                            credentials: "include",
+                            headers: { "accept": "application/json, text/plain, */*" }
+                        });
+                        return { ok: response.ok, status: response.status, text: await response.text() };
+                    }
+                    const tradeDateResponse = await fetch(tradeDatePath, {
+                        credentials: "include",
+                        headers: { "accept": "application/json, text/plain, */*" }
+                    });
+                    const tradeDates = tradeDateResponse.ok ? await tradeDateResponse.json() : [];
+                    const types = [...new Set([...tradeDates.map((item) => item.type), "C", "P"].filter(Boolean))];
+                    let fallback = null;
+                    let best = null;
+                    let bestScore = -1;
+                    function orderPrice(value) {
+                        if (!value || value.price === null || value.price === undefined) return null;
+                        const text = String(value.price).replace(/,/g, "").trim();
+                        if (!text || text === "-") return null;
+                        const parsed = Number(text);
+                        return Number.isFinite(parsed) ? parsed : null;
+                    }
+                    function priceScore(rows) {
+                        return rows.filter((row) =>
+                            row.last !== null && row.last !== undefined ||
+                            row.prior !== null && row.prior !== undefined ||
+                            orderPrice(row.bid) !== null ||
+                            orderPrice(row.offer) !== null
+                        ).length;
+                    }
+                    for (const type of types) {
+                        const path = searchPath.replace("tradeDateType=C", `tradeDateType=${encodeURIComponent(type)}`);
+                        const result = await fetchText(path);
+                        if (!result.ok) {
+                            fallback = fallback || result;
+                            continue;
+                        }
+                        const payload = JSON.parse(result.text);
+                        const rows = payload.data || [];
+                        const score = priceScore(rows);
+                        fallback = fallback || result;
+                        if (score > bestScore) {
+                            best = result;
+                            bestScore = score;
+                        }
+                        if (rows.length && score >= rows.length) return result;
+                    }
+                    return best || fallback || { ok: false, status: 500, text: "No SET trade date payload" };
+                }""",
+                [SET_DR_SEARCH_API_PATH, SET_DR_TRADE_DATE_API_PATH],
+            )
+        finally:
+            browser.close()
+
+    if not result.get("ok"):
+        raise RuntimeError(f"SET DR price refresh failed with HTTP {result.get('status')}: {result.get('text', '')[:300]}")
+    payload = json.loads(result.get("text") or "{}")
+    rows = payload.get("data") or []
+    if not rows:
+        raise RuntimeError("SET DR price refresh returned no rows")
+    return {
+        "date": payload.get("date"),
+        "trading_date": payload.get("tradingDate"),
+        "rows": rows,
+    }
+
+
+def parse_set_order_price(value: Any) -> float | None:
+    if isinstance(value, dict):
+        return parse_float(value.get("price"))
+    return None
+
+
+def parse_set_dr_market_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    parsed: list[dict[str, Any]] = []
+    for item in payload.get("rows") or []:
+        symbol = (item.get("symbol") or "").upper().strip()
+        if not symbol:
+            continue
+        dr_last = parse_float(item.get("last"))
+        prior = parse_float(item.get("prior"))
+        bid_price = parse_set_order_price(item.get("bid"))
+        offer_price = parse_set_order_price(item.get("offer"))
+        dr_last_source_field = "last"
+        if dr_last is None and prior is not None:
+            dr_last = prior
+            dr_last_source_field = "prior"
+        if dr_last is None and bid_price is not None and offer_price is not None:
+            dr_last = (bid_price + offer_price) / 2
+            dr_last_source_field = "bid_offer_mid"
+        elif dr_last is None and bid_price is not None:
+            dr_last = bid_price
+            dr_last_source_field = "bid"
+        elif dr_last is None and offer_price is not None:
+            dr_last = offer_price
+            dr_last_source_field = "offer"
+        dr_percent_change = parse_float(item.get("percentChange"))
+        if dr_percent_change is None and dr_last_source_field == "prior":
+            dr_percent_change = 0.0
+        parsed.append(
+            {
+                "symbol": symbol,
+                "company_name": item.get("name") or symbol,
+                "market_cap": item.get("marketCap"),
+                "dr_open": parse_float(item.get("open")),
+                "dr_high": parse_float(item.get("high")),
+                "dr_low": parse_float(item.get("low")),
+                "dr_last": dr_last,
+                "dr_percent_change": dr_percent_change,
+                "dr_bid": bid_price,
+                "dr_offer": offer_price,
+                "dr_last_source_field": dr_last_source_field,
+                "price_source": "SET official DR market data",
+                "price_updated_at": payload.get("date"),
+                "trade_date": payload.get("trading_date"),
+            }
+        )
+    return parsed
+
+
+def profile_from_set_dr_market_row(item: dict[str, Any]) -> dict[str, Any] | None:
+    symbol = (item.get("symbol") or "").upper().strip()
+    conversion_ratio = item.get("conversionRatio")
+    underlying = item.get("underlying")
+    dr_per_underlying = parse_conversion_ratio(conversion_ratio)
+    if not symbol or not conversion_ratio or not underlying or not dr_per_underlying:
+        return None
+    return {
+        "symbol": symbol,
+        "set_name": item.get("name"),
+        "issuer": item.get("issuer"),
+        "issuer_name": item.get("issuerName"),
+        "security_type": item.get("securityType") or "X",
+        "status": "Listed",
+        "first_trade_date": item.get("firstTradeDate"),
+        "conversion_ratio": conversion_ratio,
+        "dr_per_underlying": dr_per_underlying,
+        "underlying": underlying,
+        "underlying_name": item.get("underlyingName"),
+        "underlying_class": item.get("underlyingClassName"),
+        "underlying_exchange": item.get("underlyingExchange"),
+        "underlying_url": item.get("underlyingUrl"),
+        "indicative_price_symbol": None,
+        "indicative_price_url": None,
+        "trading_session": item.get("tradingSession"),
+        "source_url": SET_FACTSHEET_URL.format(symbol=urllib.parse.quote(symbol)),
+        "profile_fetched_at": now_iso(),
+        "profile_source": "SET official DR market data",
+    }
+
+
+def update_profile_cache_from_set_market_rows(payload: dict[str, Any]) -> None:
+    cache: dict[str, dict[str, Any]] = read_json(DR_PROFILE_CACHE, {})
+    changed = False
+    for item in payload.get("rows") or []:
+        profile = profile_from_set_dr_market_row(item)
+        if profile:
+            cache[profile["symbol"]] = profile
+            changed = True
+    if changed:
+        write_json(DR_PROFILE_CACHE, cache)
+
+
+def parse_local_dr_override_rows() -> list[dict[str, Any]]:
+    if not LOCAL_DR_OVERRIDES_CSV.exists():
+        return []
+    parsed: list[dict[str, Any]] = []
+    with LOCAL_DR_OVERRIDES_CSV.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            symbol = (row.get("symbol") or "").upper().strip()
+            if not symbol:
+                continue
+            parsed.append(
+                {
+                    "symbol": symbol,
+                    "company_name": (row.get("company_name") or symbol).strip(),
+                    "market_cap": None,
+                    "dr_last": parse_float(row.get("dr_last")),
+                    "dr_percent_change": parse_float(row.get("dr_percent_change")),
+                    "price_source": row.get("price_source") or "Local SET DR override",
+                }
+            )
+    return parsed
+
+
+def discover_dr_price_rows(update_dr_prices: bool = False) -> list[dict[str, Any]]:
     combined: dict[str, dict[str, Any]] = {}
     source_errors: list[str] = []
     try:
@@ -237,6 +464,24 @@ def discover_dr_price_rows() -> list[dict[str, Any]]:
             combined[row["symbol"]] = {**prior, **row, "price_source": "StockAnalysis SET list"}
     except Exception as exc:
         source_errors.append(f"StockAnalysis: {exc}")
+    try:
+        for row in parse_local_dr_override_rows():
+            combined.setdefault(row["symbol"], row)
+    except Exception as exc:
+        source_errors.append(f"Local override: {exc}")
+    if update_dr_prices:
+        try:
+            set_payload = fetch_set_dr_market_rows_via_browser()
+            update_profile_cache_from_set_market_rows(set_payload)
+            for row in parse_set_dr_market_rows(set_payload):
+                prior = combined.get(row["symbol"], {})
+                if row.get("dr_last") is None and prior.get("dr_last") is not None:
+                    row["dr_last"] = prior.get("dr_last")
+                    row["dr_last_source_field"] = "previous_source"
+                    row["price_source"] = f"SET official DR market data; DR price fallback from {prior.get('price_source', 'previous source')}"
+                combined[row["symbol"]] = {**prior, **row}
+        except Exception as exc:
+            raise RuntimeError(f"SET DR price refresh failed: {exc}") from exc
     rows = list(combined.values())
     for row in rows:
         if source_errors:
@@ -582,15 +827,15 @@ def fetch_google_finance_fx(base: str, quote: str) -> float | None:
     return None
 
 
-def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict[str, Any]:
+def build_dashboard(refresh: bool = False, force_profiles: bool = False, update_dr_prices: bool = False) -> dict[str, Any]:
     ensure_dirs()
     cached = read_json(DASHBOARD_CACHE, {}) if DASHBOARD_CACHE.exists() else {}
-    if not refresh and DASHBOARD_CACHE.exists():
+    if not refresh and not update_dr_prices and DASHBOARD_CACHE.exists():
         if cached:
             return cached
 
     try:
-        source_rows = discover_dr_price_rows()
+        source_rows = discover_dr_price_rows(update_dr_prices=update_dr_prices)
     except Exception:
         if cached:
             cached = dict(cached)
@@ -677,6 +922,8 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
         "sources": {
             "dr_price_list": STOCKANALYSIS_URL,
             "dr_universe_fallback": STOCKPRICEPREDICTIONS_URL,
+            "dr_universe_local_override": str(LOCAL_DR_OVERRIDES_CSV),
+            "dr_price_manual_refresh": "SET official DR market data via local browser",
             "dr_profile": "SET DR factsheet pages",
             "underlying_quote": "Yahoo Finance quote endpoint",
             "fx_quote": "Yahoo Finance FX pairs; VND uses Google Finance THB-VND inverted",
@@ -687,6 +934,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False) -> dict
             "with_diff": sum(1 for row in rows if row.get("diff_pct") is not None),
             "needs_mapping": sum(1 for row in rows if row.get("status") == "needs_mapping_or_quote"),
         },
+        "manual_price_update": update_dr_prices,
         "rows": rows,
     }
     write_json(DASHBOARD_CACHE, payload)
@@ -738,6 +986,20 @@ def export_csv(payload: dict[str, Any]) -> str:
     return output.getvalue()
 
 
+def write_public_dashboard_files(payload: dict[str, Any]) -> None:
+    public_payload = {
+        **payload,
+        "rows": [to_public_row(row) for row in payload.get("rows", [])],
+    }
+    (DATA_DIR / "dashboard.json").write_text(
+        json.dumps(public_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    csv_text = export_csv(payload)
+    if csv_text:
+        (DATA_DIR / "dashboard.csv").write_text(csv_text, encoding="utf-8-sig")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "DRDashboard/1.0"
 
@@ -754,7 +1016,14 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/dashboard":
                 refresh = query.get("refresh", ["0"])[0] == "1"
                 force_profiles = query.get("force_profiles", ["0"])[0] == "1"
-                payload = build_dashboard(refresh=refresh, force_profiles=force_profiles)
+                update_dr_prices = query.get("update_prices", ["0"])[0] == "1"
+                payload = build_dashboard(
+                    refresh=refresh or update_dr_prices,
+                    force_profiles=force_profiles,
+                    update_dr_prices=update_dr_prices,
+                )
+                if update_dr_prices:
+                    write_public_dashboard_files(payload)
                 self.send_json({**payload, "rows": [to_public_row(row) for row in payload.get("rows", [])]})
             elif parsed.path == "/api/export.csv":
                 payload = build_dashboard(refresh=False)

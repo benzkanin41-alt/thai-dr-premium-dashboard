@@ -26,7 +26,7 @@ The first full refresh can take a few minutes because the app confirms DR profil
 
 ## GitHub Pages
 
-This project can run online for free as a static GitHub Pages site. GitHub Actions builds `data/dashboard.json` and `data/dashboard.csv` every 5 minutes.
+This project can run online for free as a static GitHub Pages site. GitHub Actions builds `data/dashboard.json` and `data/dashboard.csv` every 5 minutes using the same price-refresh path as the local `Update Prices` button.
 
 ```powershell
 python scripts/build_static_data.py
@@ -40,9 +40,13 @@ To publish, create a GitHub repository, push this folder to `main`, then in GitH
 Settings > Pages > Source: GitHub Actions
 ```
 
+## Online Manual Update
+
+The online dashboard is static GitHub Pages, so it cannot securely run the Python updater directly in the browser. The `Update Prices` button on GitHub Pages opens the repository's GitHub Actions workflow. Click `Run workflow` there to refresh SET official DR prices, underlying quotes, FX, and calculated formulas, then reload the dashboard after deployment finishes.
+
 ## Data Design
 
-- DR universe and Thai DR last price: StockAnalysis SET list.
+- DR universe and Thai DR last price: SET official DR market data via Playwright browser refresh, with fallback universe discovery from public SET-list sources.
 - DR profile and true conversion ratio: SET DR factsheet page for each DR symbol.
 - Underlying live quote and currency: Yahoo Finance quote endpoint.
 - FX to THB: Yahoo Finance FX pairs such as `USDTHB=X`, `HKDTHB=X`, `JPYTHB=X`; VND uses Google Finance `THB-VND` inverted for better precision.
@@ -50,7 +54,7 @@ Settings > Pages > Source: GitHub Actions
 
 ## Future New DR
 
-Click `Refresh` to scan the SET symbol universe again. If a new symbol looks like a DR, the app fetches its SET factsheet; if SET confirms `securityType = X` and provides a conversion ratio, it appears in the dashboard.
+Click `Update Prices` locally or run the GitHub Actions workflow online to scan the SET DR universe again. If a new symbol looks like a DR, the app fetches its SET factsheet; if SET confirms `securityType = X` and provides a conversion ratio, it appears in the dashboard.
 
 If a new DR's underlying ticker cannot be resolved on Yahoo Finance, add one row to `data/underlying_map.csv`:
 

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Thai DR Premium Dashboard</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="web/styles.css" />
   </head>
   <body>
@@ -18,9 +19,7 @@
           </p>
         </div>
         <div class="actions">
-          <button id="refreshBtn" title="Load latest generated data">Refresh</button>
-          <button id="forceBtn" class="ghost" title="Only available when running local Python server">Full Profile Refresh</button>
-          <a id="exportLink" class="ghost linkbtn" href="data/dashboard.csv">Export CSV</a>
+          <button id="priceBtn" title="Update DR prices from SET official data, refresh underlying prices and FX, then recalculate the dashboard">Update Prices</button>
         </div>
       </section>
 

@@ -13,7 +13,7 @@ import app  # noqa: E402
 
 
 def main() -> None:
-    payload = app.build_dashboard(refresh=True)
+    payload = app.build_dashboard(refresh=True, update_dr_prices=True)
     data_dir = ROOT / "data"
     data_dir.mkdir(exist_ok=True)
 

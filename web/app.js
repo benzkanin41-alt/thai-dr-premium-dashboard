@@ -3,13 +3,12 @@ let visibleRows = [];
 
 const rowsEl = document.getElementById("rows");
 const noticeEl = document.getElementById("notice");
-const refreshBtn = document.getElementById("refreshBtn");
-const forceBtn = document.getElementById("forceBtn");
-const exportLink = document.getElementById("exportLink");
+const priceBtn = document.getElementById("priceBtn");
 const searchInput = document.getElementById("searchInput");
 const statusFilter = document.getElementById("statusFilter");
 const sortSelect = document.getElementById("sortSelect");
 const supportsServerApi = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const githubWorkflowUrl = "https://github.com/benzkanin41-alt/thai-dr-premium-dashboard/actions/workflows/update-dashboard.yml";
 
 function fmt(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -44,20 +43,30 @@ function statusLabel(status) {
 }
 
 function setLoading(isLoading, message = "") {
-  refreshBtn.disabled = isLoading;
-  forceBtn.disabled = isLoading;
+  if (priceBtn) priceBtn.disabled = isLoading;
   if (message) noticeEl.textContent = message;
 }
 
-async function loadDashboard({ refresh = false, forceProfiles = false } = {}) {
-  setLoading(true, forceProfiles ? "Refreshing all SET profile factsheets. First run can take a few minutes..." : "Refreshing dashboard...");
+async function loadDashboard({ updatePrices = false } = {}) {
+  const message = updatePrices
+    ? "Updating DR prices from SET official data, refreshing underlying prices and FX, then recalculating..."
+    : "Loading dashboard...";
+  setLoading(true, message);
   noticeEl.classList.remove("error");
   try {
+    if (updatePrices && !supportsServerApi) {
+      const opened = window.open(githubWorkflowUrl, "_blank", "noopener,noreferrer");
+      if (!opened) window.location.href = githubWorkflowUrl;
+      noticeEl.textContent = "Opened GitHub Actions manual update. After the workflow deploys, reload this page for the newest SET DR prices, underlying quotes, FX, and recalculated formulas.";
+      return;
+    }
     const params = new URLSearchParams();
     let url = "data/dashboard.json";
     if (supportsServerApi) {
-      if (refresh) params.set("refresh", "1");
-      if (forceProfiles) params.set("force_profiles", "1");
+      if (updatePrices) {
+        params.set("refresh", "1");
+        params.set("update_prices", "1");
+      }
       url = `/api/dashboard?${params.toString()}`;
     } else {
       params.set("ts", Date.now().toString());
@@ -69,7 +78,10 @@ async function loadDashboard({ refresh = false, forceProfiles = false } = {}) {
     updateMetrics();
     applyFilters();
     const mode = supportsServerApi ? "Local server" : "GitHub Pages static data";
-    noticeEl.textContent = `${mode}. Generated ${dashboard.generated_at}. Confirmed ${dashboard.counts.confirmed_dr} DR. ${dashboard.counts.needs_mapping} rows still need mapping or live quote.`;
+    const updateLabel = dashboard.manual_price_update
+      ? " Manual price update complete: SET DR prices, underlying quotes, FX, and formulas recalculated."
+      : "";
+    noticeEl.textContent = `${mode}. Generated ${dashboard.generated_at}. Confirmed ${dashboard.counts.confirmed_dr} DR. ${dashboard.counts.needs_mapping} rows still need mapping or live quote.${updateLabel}`;
   } catch (error) {
     noticeEl.textContent = error.message;
     noticeEl.classList.add("error");
@@ -170,8 +182,9 @@ function renderRows() {
   rowsEl.appendChild(fragment);
 }
 
-refreshBtn.addEventListener("click", () => loadDashboard({ refresh: true }));
-forceBtn.addEventListener("click", () => loadDashboard({ refresh: true, forceProfiles: true }));
+if (priceBtn) {
+  priceBtn.addEventListener("click", () => loadDashboard({ updatePrices: true }));
+}
 searchInput.addEventListener("input", applyFilters);
 statusFilter.addEventListener("change", applyFilters);
 sortSelect.addEventListener("change", applyFilters);
@@ -179,7 +192,7 @@ sortSelect.addEventListener("change", applyFilters);
 loadDashboard();
 
 if (!supportsServerApi) {
-  forceBtn.disabled = true;
-  forceBtn.title = "GitHub Pages updates by scheduled GitHub Actions every 5 minutes";
-  exportLink.href = "data/dashboard.csv";
+  if (priceBtn) {
+    priceBtn.title = "Open the GitHub Actions workflow to run the same SET DR, underlying, and FX update online";
+  }
 }
