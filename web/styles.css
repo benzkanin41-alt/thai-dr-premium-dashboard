@@ -59,7 +59,9 @@ h1 {
 }
 
 .actions,
-.controls {
+.controls,
+.view-tabs,
+.converter-controls {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -90,6 +92,20 @@ button.ghost,
 .linkbtn.ghost {
   background: #fff;
   color: var(--text);
+}
+
+.view-tabs {
+  margin: 16px 0 0;
+}
+
+.view-tabs .tab {
+  min-width: 116px;
+  justify-content: center;
+}
+
+.view-tabs .tab.active {
+  background: var(--blue);
+  color: #fff;
 }
 
 button:disabled {
@@ -131,14 +147,101 @@ button:disabled {
   margin: 18px 0 12px;
 }
 
-.controls input {
+.controls input,
+.converter-controls input {
   flex: 1 1 360px;
   padding: 0 12px;
 }
 
-.controls select {
+.controls select,
+.converter-controls select {
   padding: 0 10px;
   background: #fff;
+}
+
+.converter-view {
+  margin-top: 18px;
+}
+
+.converter-controls {
+  margin-bottom: 12px;
+}
+
+.converter-controls select {
+  flex: 1 1 420px;
+}
+
+.converter-summary,
+.converter-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.converter-summary {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  color: var(--muted);
+}
+
+.converter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.converter-card {
+  padding: 16px;
+}
+
+.converter-card h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.converter-card label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-row input {
+  width: 100%;
+  padding: 0 12px;
+}
+
+.input-row span {
+  color: var(--muted);
+  min-width: 44px;
+}
+
+.converter-output {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.converter-output span {
+  display: block;
+  font-size: 30px;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.convert-link {
+  cursor: pointer;
+}
+
+.convert-link:hover {
+  background: rgba(21, 94, 239, 0.08);
 }
 
 .notice {
@@ -255,5 +358,9 @@ td:first-child {
 
   .metrics {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .converter-grid {
+    grid-template-columns: 1fr;
   }
 }

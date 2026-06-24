@@ -23,6 +23,11 @@
         </div>
       </section>
 
+      <section class="view-tabs" role="tablist" aria-label="Dashboard views">
+        <button id="dashboardTab" class="tab active" type="button">Dashboard</button>
+        <button id="converterTab" class="tab ghost" type="button">Converter</button>
+      </section>
+
       <section class="metrics" aria-live="polite">
         <div>
           <span id="confirmedCount">-</span>
@@ -42,44 +47,83 @@
         </div>
       </section>
 
-      <section class="controls">
-        <input id="searchInput" type="search" placeholder="Search DR, underlying, issuer, exchange" />
-        <select id="statusFilter">
-          <option value="all">All status</option>
-          <option value="premium">Premium</option>
-          <option value="discount">Discount</option>
-          <option value="ok">Near fair</option>
-          <option value="needs_mapping_or_quote">Needs mapping / quote</option>
-        </select>
-        <select id="sortSelect">
-          <option value="absDiff">Sort by |diff|</option>
-          <option value="diffDesc">Premium high to low</option>
-          <option value="diffAsc">Discount low to high</option>
-          <option value="symbol">Symbol A-Z</option>
-        </select>
+      <section id="dashboardView" class="view active">
+        <section class="controls">
+          <input id="searchInput" type="search" placeholder="Search DR, underlying, issuer, exchange" />
+          <select id="statusFilter">
+            <option value="all">All status</option>
+            <option value="premium">Premium</option>
+            <option value="discount">Discount</option>
+            <option value="ok">Near fair</option>
+            <option value="needs_mapping_or_quote">Needs mapping / quote</option>
+          </select>
+          <select id="sortSelect">
+            <option value="absDiff">Sort by |diff|</option>
+            <option value="diffDesc">Premium high to low</option>
+            <option value="diffAsc">Discount low to high</option>
+            <option value="symbol">Symbol A-Z</option>
+          </select>
+        </section>
+
+        <section id="notice" class="notice">Loading dashboard...</section>
+
+        <section class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>DR</th>
+                <th>หุ้นแม่</th>
+                <th>ราคา DR ไทยตอนนี้</th>
+                <th>ราคา DR คำนวณจากหุ้นแม่</th>
+                <th>ราคาหุ้นแม่ปัจจุบัน</th>
+                <th>ราคา Pre/Postmarket</th>
+                <th>ต่างจาก Fair DR</th>
+                <th>หุ้นแม่ที่ implied จาก DR</th>
+                <th>FX</th>
+                <th>Ratio</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </section>
       </section>
 
-      <section id="notice" class="notice">Loading dashboard...</section>
+      <section id="converterView" class="view converter-view" hidden>
+        <section class="converter-controls">
+          <input id="converterSearch" type="search" placeholder="Search DR, underlying, issuer, exchange" />
+          <select id="converterSelect" aria-label="Choose DR or underlying"></select>
+        </section>
 
-      <section class="tablewrap">
-        <table>
-          <thead>
-            <tr>
-              <th>DR</th>
-              <th>หุ้นแม่</th>
-              <th>ราคา DR ไทยตอนนี้</th>
-              <th>ราคา DR คำนวณจากหุ้นแม่</th>
-              <th>ราคาหุ้นแม่ปัจจุบัน</th>
-              <th>ราคา Pre/Postmarket</th>
-              <th>ต่างจาก Fair DR</th>
-              <th>หุ้นแม่ที่ implied จาก DR</th>
-              <th>FX</th>
-              <th>Ratio</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
+        <section id="converterSummary" class="converter-summary">Loading converter...</section>
+
+        <section class="converter-grid">
+          <div class="converter-card">
+            <h2>หุ้นแม่ -> DR</h2>
+            <label for="underlyingPriceInput">ราคาหุ้นแม่</label>
+            <div class="input-row">
+              <input id="underlyingPriceInput" type="number" inputmode="decimal" step="0.0001" />
+              <span id="underlyingCurrencyLabel">-</span>
+            </div>
+            <div class="converter-output">
+              <span id="fairDrOutput">-</span>
+              <label>บาทต่อ 1 DR</label>
+            </div>
+          </div>
+
+          <div class="converter-card">
+            <h2>DR -> หุ้นแม่</h2>
+            <label for="drPriceInput">ราคา DR</label>
+            <div class="input-row">
+              <input id="drPriceInput" type="number" inputmode="decimal" step="0.0001" />
+              <span>THB</span>
+            </div>
+            <div class="converter-output">
+              <span id="impliedUnderlyingOutput">-</span>
+              <label id="impliedCurrencyLabel">- ต่อหุ้นแม่</label>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
     <script src="web/app.js"></script>
