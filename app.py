@@ -997,7 +997,8 @@ def write_public_dashboard_files(payload: dict[str, Any]) -> None:
     )
     csv_text = export_csv(payload)
     if csv_text:
-        (DATA_DIR / "dashboard.csv").write_text(csv_text, encoding="utf-8-sig")
+        with (DATA_DIR / "dashboard.csv").open("w", encoding="utf-8-sig", newline="") as f:
+            f.write(csv_text)
 
 
 class Handler(BaseHTTPRequestHandler):

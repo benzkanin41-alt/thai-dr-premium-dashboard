@@ -190,9 +190,12 @@ async function loadDashboard({ updatePrices = false } = {}) {
   noticeEl.classList.remove("error");
   try {
     if (updatePrices && !supportsServerApi) {
-      const opened = window.open(githubWorkflowUrl, "_blank", "noopener,noreferrer");
-      if (!opened) window.location.href = githubWorkflowUrl;
-      noticeEl.textContent = "Opened GitHub Actions manual update. After the workflow deploys, reload this page for the newest SET DR prices, underlying quotes, FX, and recalculated formulas.";
+      const link = document.createElement("a");
+      link.href = githubWorkflowUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.click();
+      noticeEl.textContent = "GitHub Actions opened in a new tab. Sign in and select Run workflow to request a fresh update. After deployment, reload this page for the newest SET DR prices, underlying quotes, FX, and recalculated formulas.";
       return;
     }
     const params = new URLSearchParams();

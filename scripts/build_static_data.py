@@ -14,6 +14,10 @@ import app  # noqa: E402
 
 def main() -> None:
     payload = app.build_dashboard(refresh=True, update_dr_prices=True)
+    if payload.get("served_from_stale_cache"):
+        raise RuntimeError("Live DR refresh failed; refusing to publish stale dashboard data")
+    if not payload.get("rows"):
+        raise RuntimeError("Live DR refresh returned no rows; refusing to publish empty dashboard data")
     data_dir = ROOT / "data"
     data_dir.mkdir(exist_ok=True)
 
