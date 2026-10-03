@@ -671,6 +671,21 @@ def fetch_yahoo_quotes(symbols: list[str], include_extended: bool = False) -> di
                     item = None
                 if item:
                     results[symbol] = item
+    for attempt in range(2):
+        missing = [symbol for symbol in clean if symbol not in results]
+        if not missing:
+            break
+        time.sleep(0.5 * (attempt + 1))
+        with ThreadPoolExecutor(max_workers=min(4, len(missing))) as executor:
+            futures = {executor.submit(fetch_yahoo_chart_quote, symbol): symbol for symbol in missing}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    item = future.result()
+                except Exception:
+                    item = None
+                if item:
+                    results[symbol] = item
     if include_extended:
         needs_extended = [
             symbol
@@ -917,6 +932,14 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False, update_
         )
 
     rows.sort(key=lambda r: (math.inf if r.get("diff_pct") is None else abs(r["diff_pct"])), reverse=True)
+    if update_dr_prices:
+        missing_symbols = [row["symbol"] for row in rows if row["status"] == "needs_mapping_or_quote"]
+        if missing_symbols:
+            raise RuntimeError(
+                f"Live price update incomplete for {len(missing_symbols)} DR: "
+                + ", ".join(missing_symbols[:12])
+                + ". Previous dashboard data was kept."
+            )
     payload = {
         "generated_at": now_iso(),
         "sources": {
