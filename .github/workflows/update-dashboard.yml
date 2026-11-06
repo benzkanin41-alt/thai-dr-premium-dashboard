@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,11 +33,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install browser dependencies
+      - name: Install Playwright and select browser
         run: |
-          python -m pip install --upgrade pip
           python -m pip install playwright
-          python -m playwright install --with-deps chromium
+          browser="$(command -v google-chrome || true)"
+          if [ -n "$browser" ]; then
+            echo "DR_DASHBOARD_BROWSER_EXECUTABLE=$browser" >> "$GITHUB_ENV"
+          else
+            python -m playwright install --with-deps chromium
+          fi
 
       - name: Build dashboard data
         run: python scripts/build_static_data.py
