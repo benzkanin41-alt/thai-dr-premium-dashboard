@@ -5,6 +5,19 @@ import app
 
 
 class PriceRefreshTests(unittest.TestCase):
+    def test_one_digit_hong_kong_underlying_maps_to_yahoo_symbol(self):
+        record = {
+            "symbol": "HSBC11",
+            "underlying": "HSBC",
+            "underlying_name": "HSBC HOLDINGS PLC (5)",
+            "underlying_exchange": "The Stock Exchange of Hong Kong Limited",
+        }
+
+        self.assertEqual(
+            app.resolve_yahoo_symbol(record, {}),
+            ("0005.HK", "exchange_rule_hk"),
+        )
+
     def test_retries_a_missing_yahoo_quote(self):
         quote = {"regularMarketPrice": 73.92, "currency": "USD"}
         with (

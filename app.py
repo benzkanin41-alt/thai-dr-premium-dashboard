@@ -608,7 +608,7 @@ def resolve_yahoo_symbol(record: dict[str, Any], manual_map: dict[str, dict[str,
     paren_codes = re.findall(r"\(([A-Z0-9.\-]{1,16})\)", underlying_name)
     if paren_codes:
         ticker_code = paren_codes[-1]
-    numeric_code = ticker_code if ticker_code and re.fullmatch(r"\d{3,6}", ticker_code) else None
+    numeric_code = ticker_code if ticker_code and re.fullmatch(r"\d{1,6}", ticker_code) else None
     if ticker_code and ticker_code.endswith(".HK"):
         return ticker_code, "exchange_rule_explicit_code"
     if "hong kong" in underlying_exchange:
