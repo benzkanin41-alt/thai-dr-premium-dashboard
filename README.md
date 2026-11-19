@@ -26,7 +26,7 @@ The first full refresh can take a few minutes because the app confirms DR profil
 
 ## GitHub Pages
 
-This project can run online for free as a static GitHub Pages site. GitHub Actions builds `data/dashboard.json` and `data/dashboard.csv` every 5 minutes using the same price-refresh path as the local `Update Prices` button.
+This project can run online for free as a static GitHub Pages site. GitHub Actions is scheduled to rebuild `data/dashboard.json` and `data/dashboard.csv` every 5 minutes using the same price-refresh path as the local `Update Prices` button. [GitHub may delay or drop scheduled runs](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule), so Pages shows the last successful deployment.
 
 ```powershell
 python scripts/build_static_data.py
@@ -49,7 +49,7 @@ The online dashboard is static GitHub Pages, so it cannot securely run the Pytho
 - DR universe and Thai DR last price: SET official DR market data via Playwright browser refresh, with fallback universe discovery from public SET-list sources.
 - DR profile and true conversion ratio: SET DR factsheet page for each DR symbol.
 - Underlying live quote and currency: Yahoo Finance quote endpoint.
-- FX to THB: Yahoo Finance FX pairs such as `USDTHB=X`, `HKDTHB=X`, `JPYTHB=X`; VND uses Google Finance `THB-VND` inverted for better precision.
+- FX to THB: Yahoo Finance FX pairs such as `USDTHB=X`, `HKDTHB=X`, `JPYTHB=X`; VND prefers Google Finance `THB-VND` inverted. If Google's quotes are unavailable, it tries the Yahoo cross rate (`USDTHB=X` divided by `USDVND=X`), then the direct Yahoo `VNDTHB=X` quote.
 - Manual mapping for non-US or unusual underlying symbols: `data/underlying_map.csv`.
 
 ## Future New DR

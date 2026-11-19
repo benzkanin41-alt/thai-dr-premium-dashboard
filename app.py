@@ -807,6 +807,7 @@ def currency_to_thb_specs(currencies: list[str]) -> dict[str, list[dict[str, Any
             mapping[currency] = [
                 {"source": "google_finance", "base": "THB", "quote": "VND", "symbol": "Google Finance THB-VND", "invert": True},
                 {"source": "google_finance", "base": "VND", "quote": "THB", "symbol": "Google Finance VND-THB", "invert": False},
+                {"source": "yahoo", "symbol": "USDTHB=X", "divide_by": "USDVND=X", "invert": False},
                 {"source": "yahoo", "symbol": "VNDTHB=X", "invert": False},
             ]
         else:
@@ -818,11 +819,19 @@ def resolve_fx_to_thb(currency: str, specs: list[dict[str, Any]], quotes: dict[s
     for spec in specs:
         symbol = spec["symbol"]
         if spec.get("source") == "google_finance":
-            price = fetch_google_finance_fx(str(spec["base"]), str(spec["quote"]))
+            try:
+                price = fetch_google_finance_fx(str(spec["base"]), str(spec["quote"]))
+            except OSError:
+                continue
         else:
             price = parse_float(quotes.get(symbol, {}).get("regularMarketPrice"))
-        if not price:
+        if price is None or not math.isfinite(price) or price <= 0:
             continue
+        if divisor_symbol := spec.get("divide_by"):
+            divisor = parse_float(quotes.get(divisor_symbol, {}).get("regularMarketPrice"))
+            if divisor is None or not math.isfinite(divisor) or divisor <= 0:
+                continue
+            return price / divisor, f"{symbol} / {divisor_symbol}"
         if spec.get("invert"):
             return 1 / price, f"{symbol} inverted"
         return price, symbol
@@ -852,7 +861,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False, update_
     try:
         source_rows = discover_dr_price_rows(update_dr_prices=update_dr_prices)
     except Exception:
-        if cached:
+        if cached and not update_dr_prices:
             cached = dict(cached)
             cached["served_from_stale_cache"] = True
             cached["cache_warning"] = "Live refresh failed; served last cached dashboard data."
@@ -879,7 +888,14 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False, update_
     underlying_quotes = fetch_yahoo_quotes(yahoo_symbols, include_extended=True)
     currencies = [q.get("currency") for q in underlying_quotes.values() if q.get("currency")]
     fx_specs = currency_to_thb_specs(currencies)
-    fx_quote_symbols = [spec["symbol"] for specs in fx_specs.values() for spec in specs if spec.get("source") == "yahoo"]
+    fx_quote_symbols = [
+        symbol
+        for specs in fx_specs.values()
+        for spec in specs
+        if spec.get("source") == "yahoo"
+        for symbol in (spec["symbol"], spec.get("divide_by"))
+        if symbol
+    ]
     fx_quotes = fetch_yahoo_quotes(fx_quote_symbols)
     fx_to_thb: dict[str, float] = {"THB": 1.0}
     fx_sources: dict[str, str] = {"THB": "THB"}
@@ -949,7 +965,7 @@ def build_dashboard(refresh: bool = False, force_profiles: bool = False, update_
             "dr_price_manual_refresh": "SET official DR market data via local browser",
             "dr_profile": "SET DR factsheet pages",
             "underlying_quote": "Yahoo Finance quote endpoint",
-            "fx_quote": "Yahoo Finance FX pairs; VND uses Google Finance THB-VND inverted",
+            "fx_quote": "Yahoo Finance FX pairs; VND uses Google Finance or a Yahoo FX cross-rate fallback",
         },
         "counts": {
             "candidate_symbols": len(source_rows),
